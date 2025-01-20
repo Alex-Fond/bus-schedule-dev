@@ -8,6 +8,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
+
+
 # The functions to actually check stuff
 def safety_margin(num, battery):
     with open('./bus.json') as f:
