@@ -8,7 +8,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-
+"""
+make a list based on the activity numbers after sorting by start time long,
+then iterate over that list to know which activity number to check when doing things in time order.
+Example:
+l1 = [0,1,2,3,4]
+l2 = [4,2,3,0,1]
+for i in range(len(l2)):
+    activity_num = l1[l2[i]]
+"""
 
 # The functions to actually check stuff
 def safety_margin(num, battery):
