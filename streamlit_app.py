@@ -9,15 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.patches as mpatches
 
-"""
-make a list based on the activity numbers after sorting by start time long,
-then iterate over that list to know which activity number to check when doing things in time order.
-Example:
-l1 = [0,1,2,3,4]
-l2 = [4,2,3,0,1]
-for i in range(len(l2)):
-    activity_num = l1[l2[i]]
-"""
+
 
 # The functions to actually check stuff
 def safety_margin(num, battery):
@@ -213,6 +205,18 @@ def calc_dpru_dru():
         return 0
     return dpru/dru
 
+def calc_material():
+    with open('./bus.json') as f:
+        bus_settings = json.load(f)
+    with open('./tool.json') as f:
+        tool_settings = json.load(f)
+    count = 0
+    for num in range(schedule_count):
+        material = bus_settings["material_name"]
+        if list_activity_name[num] == material:
+            count += 1
+    return count
+
 def check_error(errorless, erroring):
     if errorless == True and erroring == True:
         return True
@@ -226,15 +230,15 @@ def check_schedule():
         bus_settings = json.load(f)
     with open('./tool.json') as f:
         tool_settings = json.load(f)
-    progress_max = len(df_schedule.index) + len(df_timetable.index)
+    progress_max = schedule_count + timetable_count
     progress_current = 0
     check_progress = st.progress(progress_current)
     errorless = True
     for bus in df_schedule.bus_number.unique():
         prev_act = None
         prev_battery = None
-        for activity in df_schedule.sort_values(by="start_time_long")[df_schedule.bus_number == bus]["activity_number"]:
-            if validate_time(activity) == True:
+        for activity in activity_by_time:
+            if list_bus_number[activity] == bus and validate_time(activity) == True:
                 erroring = check_overlap(activity, prev_act)
                 errorless = check_error(errorless, erroring)
                 battery = calc_battery(activity, prev_battery)
@@ -244,6 +248,8 @@ def check_schedule():
                 errorless = check_error(errorless, erroring)
                 prev_battery = battery
             progress_current += 1
+            if progress_current > progress_max:
+                progress_current = progress_max
             check_progress.progress(progress_current/progress_max)
             prev_act = activity
     check_timetable()
@@ -254,6 +260,8 @@ def check_schedule():
     dpru_dru = calc_dpru_dru()
     if dpru_dru != 0:
         st.write(f"Calculated DPRU/DRU ratio: {dpru_dru:.2f} used hours per productive hour")
+    count = calc_material()
+    st.write(f"Calculated KPI: {count} empty bus trips (average {count/len(df_schedule.bus_number.unique())} per bus)")
 
 # Full timetable check
 def check_timetable():
@@ -268,30 +276,28 @@ def check_timetable():
         end_location = list2_end_location[val]
         start_time = list2_start_time[val]
         bus_line = list2_bus_line[val]
-        for activity in df_schedule.sort_values(by="start_time_long")["activity_number"]:
-            if satisfied == False:
-                start_location2 = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_location"]).split()[1:-4]
-                start_location2 = " ".join(start_location2)
+        for activity in activity_by_time:
+            if satisfied == False and list_activity_name[activity] == bus_settings["active_name"]:
+                start_location2 = list_start_location[activity]
                 if start_location == start_location2:
-                    end_location2 = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_location"]).split()[1:-4]
-                    end_location2 = " ".join(end_location2)
+                    end_location2 = list_end_location[activity]
                     if end_location == end_location2:
-                        start_time2 = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time"]).split()[1][:-3]
+                        start_time2 = list_start_time[activity][:-3]
                         if start_time == start_time2:
-                            bus_line2 = str(df_schedule.loc[df_schedule["activity_number"] == activity, "bus_line"]).split()[1]
-                            try:
-                                bus_line2 = int(bus_line2)
-                            except ValueError:
-                                bus_line2 = 0
-                            if bus_line == bus_line2 or bus_line2 == 0:
+                            bus_line2 = list_bus_line[activity]
+                            bus_line2 = int(bus_line2)
+                            if bus_line == bus_line2:
                                 satisfied = True
         if satisfied == False:
             st.write(f":red[Error]: Bus line {bus_line} from {start_location} to {end_location} at {start_time} is not accounted for")
         progress_current += 1
+        if progress_current > progress_max:
+            progress_current = progress_max
         check_progress.progress(progress_current/progress_max)
 
 # Create Gannt chart
 def chart():
+    st.write("Generating Gannt chart...")
     with open('./bus.json') as f:
         bus_settings = json.load(f)
     with open('./tool.json') as f:
@@ -318,34 +324,33 @@ def chart():
         bus_number = int(bus[4:])  
         ax.barh(bus_number, 0)  
 
-        bus_activities = df_schedule[df_schedule.bus_number == bus_number].sort_values(by="start_time_long")
+        for activity in activity_by_time:
+            if list_bus_number[activity] == bus_number:
+                start = str(list_start_time_long[activity]).split()
+                if len(start) == 1:
+                    start.append("00:00:00")
+                start = " ".join(start)
+                start = datetime.datetime(*time.strptime(start, "%Y-%m-%d %H:%M:%S")[0:6])
 
-        for activity in bus_activities["activity_number"]:
-            start = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4]
-            if len(start) == 1:
-                start.append("00:00:00")
-            start = " ".join(start)
-            start = datetime.datetime(*time.strptime(start, "%Y-%m-%d %H:%M:%S")[0:6])
+                if start < min_x:
+                    min_x = start
+                start_time = mpl.dates.date2num(start)
 
-            if start < min_x:
-                min_x = start
-            start_time = mpl.dates.date2num(start)
+                end = str(list_end_time_long[activity]).split()
+                if len(end) == 1:
+                    end.append("00:00:00")
+                end = " ".join(end)
+                end = datetime.datetime(*time.strptime(end, "%Y-%m-%d %H:%M:%S")[0:6])
 
-            end = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time_long"]).split()[1:-4]
-            if len(end) == 1:
-                end.append("00:00:00")
-            end = " ".join(end)
-            end = datetime.datetime(*time.strptime(end, "%Y-%m-%d %H:%M:%S")[0:6])
+                if end > max_x:
+                    max_x = end
+                end_time = mpl.dates.date2num(end)
 
-            if end > max_x:
-                max_x = end
-            end_time = mpl.dates.date2num(end)
+                timespan = end_time - start_time
+                activity_name = str(list_activity_name[activity])
+                color = activity_colors.get(activity_name) 
 
-            timespan = end_time - start_time
-            activity_name = df_schedule.loc[df_schedule["activity_number"] == activity, "activity_name"].values[0]
-            color = activity_colors.get(activity_name) 
-        
-            ax.barh(y=bus_number, width=timespan, left=start_time, color=color)
+                ax.barh(y=bus_number, width=timespan, left=start_time, color=color)
             
     legend_patches= [mpatches.Patch(color=color,label=label) for label, color in activity_colors.items()]
     ax.legend(handles=legend_patches,title="Activity Types", loc="upper right")
@@ -362,11 +367,9 @@ def chart():
 
 # Convert the dataframes to lists
 def create_lists():
-    global list_start_location, list_end_location, list_start_time, list_end_time, list_activity_name, list_bus_line, list_energy_usage, list_start_time_long, list_end_time_long, list_bus_number, list2_start_location, list2_start_time, list2_end_location, list2_bus_line, schedule_count, timetable_count, list_battery
-    # df_schedule
-    df_timetable["bus_line"].fillna(0)
-    df_schedule["bus_line"].fillna(0)
+    global list_start_location, list_end_location, list_start_time, list_end_time, list_activity_name, list_bus_line, list_energy_usage, list_start_time_long, list_end_time_long, list_bus_number, list2_start_location, list2_start_time, list2_end_location, list2_bus_line, schedule_count, timetable_count, list_battery, activity_by_time, index_by_time
     df_timetable["index"] = range(len(df_timetable.index))
+    # df_schedule
     #list_activity_number = df_schedule["activity_number"].to_list() # honestly no point in this, just use "i in range(count)" (see count vars below)
     list_start_location = df_schedule["start_location"].to_list()
     list_end_location = df_schedule["end_location"].to_list()
@@ -384,11 +387,12 @@ def create_lists():
     list2_end_location = df_timetable["end_location"].to_list()
     list2_bus_line = df_timetable["bus_line"].to_list()
     # extra
+    activity_by_time = df_schedule.sort_values(by="start_time_long")["activity_number"].to_list()
+    index_by_time = df_timetable.sort_values(by="start_time")["index"].to_list()
     schedule_count = len(list_start_location)
     timetable_count = len(list2_start_location)
     list_battery = [0] * schedule_count
     # okay let's go
-    print(schedule_count)
     check_schedule()
 
 st.title("Bus schedule checker")
