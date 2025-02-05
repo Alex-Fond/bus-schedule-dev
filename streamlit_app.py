@@ -23,12 +23,12 @@ def safety_margin(num, battery):
     battery_minimum = tool_settings["minimum_soc"]
     battery_maximum = tool_settings["maximum_soc"]
     if battery * soh < battery_minimum:
-        st.write(f":red[Error]: Bus {bus} reaches below required minimum battery charge during activity {num}")
-        return False
+        st.write(f":red[Error]: Bus {bus} below required minimum battery charge during activity {num} ({battery*100:.1f}% * {soh*100:.1f}% SOH = {battery*soh*100:.1f}%)")
+        return True
     elif battery * soh > battery_maximum:
-        st.write(f":red[Error]: Bus {bus} above required maximum battery charge during activity {num}")
-        return False
-    return True
+        st.write(f":red[Error]: Bus {bus} above required maximum battery charge during activity {num} ({battery*100:.1f}% * {soh*100:.1f}% SOH = {battery*soh*100:.1f}%)")
+        return True
+    return False
 
 def validate_time(num):
     with open('./bus.json') as f:
@@ -39,8 +39,12 @@ def validate_time(num):
     if timespan < 0:
         timespan = 0
         st.write(f":orange[Warning]: activity {num} ends before it starts (negative duration), activity ignored")
+        return False
     elif timespan == 0:
         st.write(f":orange[Warning]: activity {num} ends at the same time as it starts (duration of 0), activity ignored")
+        return False
+    else:
+        return True
 
 def calc_battery(num, prev_battery):
     with open('./bus.json') as f:
@@ -62,7 +66,7 @@ def calc_battery(num, prev_battery):
     if bus_settings[string] == True:
         usage = list_usage[num]
     else:
-        act = activity[num]
+        act = list_activity_name[num]
         if act == bus_settings["idle_name"]:
             string = f"bus_{bus}_idle"
             usage = bus_settings[string]
@@ -73,6 +77,10 @@ def calc_battery(num, prev_battery):
             usage = bus_settings[string]
     battery_change = usage * timespan
     battery = prev_battery - (battery_change / (max_battery * soh))
+    if battery > 1:
+        battery = 1
+    elif battery < 0:
+        battery = 0
     return battery
 
 def calc_charging_speed(num):
@@ -158,17 +166,22 @@ def calc_charge_time_minimum(num):
         else:
             charging = False
     if charging == True:
-        check = calc_time_activity(num) >= tool_settings["min_charge_time"]/60
+        check = calc_time_activity(num)*60 >= tool_settings["min_charge_time"]
         if check == False:
             st.write(f":red[Error]: Bus {bus} is charging for less than the required amount of time during activity {num}")
+            return True
+        else:
+            return False
     else:
-        return True
+        return False
 
 def check_overlap(num, prev_act):
     with open('./bus.json') as f:
         bus_settings = json.load(f)
     with open('./tool.json') as f:
         tool_settings = json.load(f)
+    if prev_act == None:
+        return False
     start_time_list = str(list_start_time_long[num]).split()
     if len(start_time_list) == 1:
         start_time_list.append("00:00:00")
@@ -179,11 +192,11 @@ def check_overlap(num, prev_act):
     end_time = end_time_list[0] + " " + end_time_list[1]
     start = datetime.datetime(*time.strptime(start_time, "%Y-%m-%d %H:%M:%S")[0:6])
     end = datetime.datetime(*time.strptime(end_time, "%Y-%m-%d %H:%M:%S")[0:6])
-    difference = start - end
-    if difference < 0:
+    difference = end - start
+    if difference.total_seconds() < 0:
         st.write(f":red[Error]: activity {num} starts before activity {prev_act} has ended")
-        return False
-    return True
+        return True
+    return False
 
 def calc_dpru_dru():
     with open('./bus.json') as f:
@@ -218,7 +231,7 @@ def calc_material():
     return count
 
 def check_error(errorless, erroring):
-    if errorless == True and erroring == True:
+    if errorless == True and erroring == False:
         return True
     else:
         return False
@@ -234,24 +247,24 @@ def check_schedule():
     progress_current = 0
     check_progress = st.progress(progress_current)
     errorless = True
+    erroring = False
     for bus in df_schedule.bus_number.unique():
         prev_act = None
         prev_battery = None
         for activity in activity_by_time:
-            if list_bus_number[activity] == bus and validate_time(activity) == True:
-                erroring = check_overlap(activity, prev_act)
-                errorless = check_error(errorless, erroring)
-                battery = calc_battery(activity, prev_battery)
-                erroring = safety_margin(battery)
-                errorless = check_error(errorless, erroring)
-                erroring = calc_charge_time_minimum(activity)
-                errorless = check_error(errorless, erroring)
-                prev_battery = battery
-            progress_current += 1
-            if progress_current > progress_max:
-                progress_current = progress_max
+            if list_bus_number[activity] == bus:
+                if validate_time(activity) == True:
+                    erroring = check_overlap(activity, prev_act)
+                    errorless = check_error(errorless, erroring)
+                    battery = calc_battery(activity, prev_battery)
+                    erroring = safety_margin(activity, battery)
+                    errorless = check_error(errorless, erroring)
+                    erroring = calc_charge_time_minimum(activity)
+                    errorless = check_error(errorless, erroring)
+                    prev_battery = battery
+                    prev_act = activity
+                progress_current += 1
             check_progress.progress(progress_current/progress_max)
-            prev_act = activity
     check_timetable()
     if errorless == True:
         chart()
@@ -291,8 +304,6 @@ def check_timetable():
         if satisfied == False:
             st.write(f":red[Error]: Bus line {bus_line} from {start_location} to {end_location} at {start_time} is not accounted for")
         progress_current += 1
-        if progress_current > progress_max:
-            progress_current = progress_max
         check_progress.progress(progress_current/progress_max)
 
 # Create Gannt chart
