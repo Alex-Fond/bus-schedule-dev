@@ -7,6 +7,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.patches as mpatches
 
 """
 make a list based on the activity numbers after sorting by start time long,
@@ -204,7 +205,7 @@ def calc_dpru_dru():
         if timespan < 0:
             timespan = 0
         dpru += timespan
-        active = bus_settings["active_name"].split()
+        active = bus_settings["active_name"]
         if list_activity_name[num] == active:
             dru += timespan
     if dru == 0:
@@ -295,33 +296,59 @@ def chart():
         bus_settings = json.load(f)
     with open('./tool.json') as f:
         tool_settings = json.load(f)
+
+    activity_colors = {
+        "materiaal rit": "tab:red",
+        "idle": "y",
+        "dienst rit": "tab:green",
+        "opladen": "tab:blue"
+    }
+
     fig, ax = plt.subplots(figsize=(20, 10))
+
     busses = []
     for i in range(bus_count):
         busses.append(f"Bus {i+1}")
+
     max_x = datetime.datetime(*time.strptime("0001-01-01 00:00:00", "%Y-%m-%d %H:%M:%S")[0:6])
     min_x = datetime.datetime(*time.strptime("9999-12-31 23:59:59", "%Y-%m-%d %H:%M:%S")[0:6])
+
+    
     for bus in busses:
-        ax.barh(int(bus[4:]), 0)
-        for activity in df_schedule[df_schedule.bus_number==int(bus[4:])].sort_values(by="start_time_long")["activity_number"]:
+        bus_number = int(bus[4:])  
+        ax.barh(bus_number, 0)  
+
+        bus_activities = df_schedule[df_schedule.bus_number == bus_number].sort_values(by="start_time_long")
+
+        for activity in bus_activities["activity_number"]:
             start = str(df_schedule.loc[df_schedule["activity_number"] == activity, "start_time_long"]).split()[1:-4]
             if len(start) == 1:
                 start.append("00:00:00")
             start = " ".join(start)
             start = datetime.datetime(*time.strptime(start, "%Y-%m-%d %H:%M:%S")[0:6])
+
             if start < min_x:
                 min_x = start
             start_time = mpl.dates.date2num(start)
+
             end = str(df_schedule.loc[df_schedule["activity_number"] == activity, "end_time_long"]).split()[1:-4]
             if len(end) == 1:
                 end.append("00:00:00")
             end = " ".join(end)
             end = datetime.datetime(*time.strptime(end, "%Y-%m-%d %H:%M:%S")[0:6])
+
             if end > max_x:
                 max_x = end
             end_time = mpl.dates.date2num(end)
-            timespan = end_time-start_time
-            ax.barh(y=int(bus[4:]), width=timespan, left=start_time)
+
+            timespan = end_time - start_time
+            activity_name = df_schedule.loc[df_schedule["activity_number"] == activity, "activity_name"].values[0]
+            color = activity_colors.get(activity_name) 
+        
+            ax.barh(y=bus_number, width=timespan, left=start_time, color=color)
+            
+    legend_patches= [mpatches.Patch(color=color,label=label) for label, color in activity_colors.items()]
+    ax.legend(handles=legend_patches,title="Activity Types", loc="upper right")
     ax.set_ylabel("Bus")
     ax.set_xlabel("Time")
     ax.set_xlim([min_x, max_x])
@@ -331,6 +358,7 @@ def chart():
     ax.invert_yaxis()
     st.pyplot(fig=fig)
     return
+
 
 # Convert the dataframes to lists
 def create_lists():
