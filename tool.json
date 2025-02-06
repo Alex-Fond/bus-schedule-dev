@@ -1,1 +1,1 @@
-{"minimum_soc": 0.1, "maximum_soc": 0.9, "optimal_charge": [0.0, 0.9], "charge_speed_optimal": 450.0, "charge_speed_suboptimal": 60.0, "min_charge_time": 15.0}
+{"minimum_soc": 0.0, "maximum_soc": 1.0, "optimal_charge": [0.0, 0.9], "charge_speed_optimal": 450.0, "charge_speed_suboptimal": 60.0, "min_charge_time": 15.0}

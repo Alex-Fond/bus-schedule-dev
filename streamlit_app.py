@@ -20,12 +20,17 @@ def safety_margin(num, battery):
     bus = list_bus_number[num]
     string = f"bus_{bus}_soh"
     soh = bus_settings[string]
+    temp_bat = battery * soh
+    if temp_bat < 0:
+        temp_bat = 0
+    if temp_bat > 1:
+        temp_bat = 1
     battery_minimum = tool_settings["minimum_soc"]
     battery_maximum = tool_settings["maximum_soc"]
-    if battery * soh < battery_minimum:
+    if temp_bat < battery_minimum:
         st.write(f":red[Error]: Bus {bus} below required minimum battery charge during activity {num} ({battery*100:.1f}% * {soh*100:.1f}% SOH = {battery*soh*100:.1f}%)")
         return True
-    elif battery * soh > battery_maximum:
+    elif temp_bat > battery_maximum:
         st.write(f":red[Error]: Bus {bus} above required maximum battery charge during activity {num} ({battery*100:.1f}% * {soh*100:.1f}% SOH = {battery*soh*100:.1f}%)")
         return True
     return False
@@ -372,6 +377,7 @@ def chart():
     ax.set_title("Gannt chart for imported bus schedule")
     ax.set_yticks(np.arange(len(busses))+1, labels=busses)
     ax.invert_yaxis()
+    st.write("Gannt chart generated successfully!")
     st.pyplot(fig=fig)
     return
 
