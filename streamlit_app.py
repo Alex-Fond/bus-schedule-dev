@@ -353,25 +353,27 @@ def chart():
                 start = " ".join(start)
                 start = datetime.datetime(*time.strptime(start, "%Y-%m-%d %H:%M:%S")[0:6])
 
-                if start < min_x:
-                    min_x = start
-                start_time = mpl.dates.date2num(start)
-
                 end = str(list_end_time_long[activity]).split()
                 if len(end) == 1:
                     end.append("00:00:00")
                 end = " ".join(end)
                 end = datetime.datetime(*time.strptime(end, "%Y-%m-%d %H:%M:%S")[0:6])
 
-                if end > max_x:
-                    max_x = end
-                end_time = mpl.dates.date2num(end)
+                if end > start:
 
-                timespan = end_time - start_time
-                activity_name = str(list_activity_name[activity])
-                color = activity_colors.get(activity_name) 
+                    if start < min_x:
+                        min_x = start
+                    start_time = mpl.dates.date2num(start)
 
-                ax.barh(y=bus_number, width=timespan, left=start_time, color=color)
+                    if end > max_x:
+                        max_x = end
+                    end_time = mpl.dates.date2num(end)
+
+                    timespan = end_time - start_time
+                    activity_name = str(list_activity_name[activity])
+                    color = activity_colors.get(activity_name) 
+
+                    ax.barh(y=bus_number, width=timespan, left=start_time, color=color)
             
     legend_patches= [mpatches.Patch(color=color,label=label) for label, color in activity_colors.items()]
     ax.legend(handles=legend_patches,title="Activity Types", loc="upper right")
