@@ -305,8 +305,8 @@ def check_timetable():
                 if start_location == start_location2:
                     end_location2 = list_end_location[activity]
                     if end_location == end_location2:
-                        start_time2 = list_start_time[activity][:-3]
-                        if start_time == start_time2:
+                        start_time2 = str(list_start_time[activity])[:-3]
+                        if str(start_time) == str(start_time2):
                             bus_line2 = list_bus_line[activity]
                             bus_line2 = int(bus_line2)
                             if bus_line == bus_line2:
