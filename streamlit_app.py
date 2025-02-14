@@ -69,7 +69,7 @@ def calc_battery(num, prev_battery):
         return battery
     string = f"bus_{bus}_custom_usage"
     if bus_settings[string] == True:
-        usage = list_usage[num]
+        usage = list_energy_usage[num]
     else:
         act = list_activity_name[num]
         if act == bus_settings["idle_name"]:
@@ -159,7 +159,7 @@ def calc_charge_time_minimum(num):
     charging = False
     string = f"bus_{bus}_custom_usage"
     if bus_settings[string] == True:
-        usage = list_usage[num]
+        usage = list_energy_usage[num]
         if usage < 0:
             charging = True
         else:
