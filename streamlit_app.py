@@ -191,7 +191,7 @@ def check_overlap(num, prev_act):
     if len(start_time_list) == 1:
         start_time_list.append("00:00:00")
     start_time = start_time_list[0] + " " + start_time_list[1]
-    end_time_list = str(list_end_time_long[num]).split()
+    end_time_list = str(list_end_time_long[prev_act]).split()
     if len(end_time_list) == 1:
         end_time_list.append("00:00:00")
     end_time = end_time_list[0] + " " + end_time_list[1]
